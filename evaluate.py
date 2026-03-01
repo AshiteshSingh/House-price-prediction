@@ -21,7 +21,7 @@ model_et   = artifact["model_et"]
 meta       = artifact["meta_learner"]
 model_dnn  = tf.keras.models.load_model("custom_hybrid_keras.keras")
 
-df = (pd.read_csv("PanTrainModel_data1/train_part1.csv", on_bad_lines="skip")
+df = (pd.read_csv("Training_dataset/train_part1.csv", on_bad_lines="skip")
         .dropna(axis=1, how="all").dropna(subset=["Price_INR"]))
 _, X_val, _, y_val = train_test_split(
     df.drop(columns=["Price_INR"]), df["Price_INR"], test_size=0.2, random_state=42)

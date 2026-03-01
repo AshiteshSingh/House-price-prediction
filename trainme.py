@@ -34,7 +34,7 @@ from tensorflow.keras.models import Sequential
 from lightgbm import LGBMRegressor
 from xgboost import XGBRegressor
 
-DATA_DIR = Path(__file__).parent / "PanTrainModel_data1"
+DATA_DIR = Path(__file__).parent / "Training_dataset"
 MODEL_OUTPUT_PATH = Path(__file__).parent / "custom_hybrid_model.pkl"
 TEST_SIZE = 0.2
 RANDOM_STATE = 42

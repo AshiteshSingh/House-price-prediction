@@ -1,0 +1,15 @@
+--- properties.csv ---
+Columns (145): ['ID', 'Possession Status', 'Availability Starts From', 'Floor No', 'Commercial', 'Developer', 'Approved Authority Name', 'Units Available', 'Price', 'Price (English)', 'Flooring Type', 'Electricity Status', 'Maintenance Type', 'Maintenance Charges', 'Booking Amount', 'Landmark', 'Covered Area', 'Project Name', 'sqft Price ', 'Carpet Area', 'Area Name', 'Property Uniqueness', 'Unit of Carpet Area', 'Society', 'Ownership Type', 'furnished Type', 'Bathroom', 'Parking', 'Facing', 'Amenities Facing'] ... and more if any
+--- real_estate_dataset.csv ---
+Columns (9): ['url', 'beds', 'city', 'date', 'size', 'type', 'baths', 'price', 'neighborhood'] ... and more if any
+Target: price found.
+--- test_part1.csv ---
+Columns (23): ['ListingID', 'City', 'Locality', 'PropertyType', 'BHK', 'Bathrooms', 'Balconies', 'Furnishing', 'SuperBuiltUpArea_sqft', 'BuiltUpArea_sqft', 'CarpetArea_sqft', 'Floor', 'TotalFloors', 'Parking', 'BuildingType', 'YearBuilt', 'AgeYears', 'Facing', 'AmenitiesCount', 'IsRERARegistered', 'RERAID', 'Latitude', 'Longitude'] ... and more if any
+--- test_part2.csv ---
+Columns (23): ['ListingID', 'City', 'Locality', 'PropertyType', 'BHK', 'Bathrooms', 'Balconies', 'Furnishing', 'SuperBuiltUpArea_sqft', 'BuiltUpArea_sqft', 'CarpetArea_sqft', 'Floor', 'TotalFloors', 'Parking', 'BuildingType', 'YearBuilt', 'AgeYears', 'Facing', 'AmenitiesCount', 'IsRERARegistered', 'RERAID', 'Latitude', 'Longitude'] ... and more if any
+--- train_part1.csv ---
+Columns (24): ['ListingID', 'City', 'Locality', 'PropertyType', 'BHK', 'Bathrooms', 'Balconies', 'Furnishing', 'SuperBuiltUpArea_sqft', 'BuiltUpArea_sqft', 'CarpetArea_sqft', 'Floor', 'TotalFloors', 'Parking', 'BuildingType', 'YearBuilt', 'AgeYears', 'Facing', 'AmenitiesCount', 'IsRERARegistered', 'RERAID', 'Latitude', 'Longitude', 'Price_INR'] ... and more if any
+Target: Price_INR found.
+--- train_part2.csv ---
+Columns (24): ['ListingID', 'City', 'Locality', 'PropertyType', 'BHK', 'Bathrooms', 'Balconies', 'Furnishing', 'SuperBuiltUpArea_sqft', 'BuiltUpArea_sqft', 'CarpetArea_sqft', 'Floor', 'TotalFloors', 'Parking', 'BuildingType', 'YearBuilt', 'AgeYears', 'Facing', 'AmenitiesCount', 'IsRERARegistered', 'RERAID', 'Latitude', 'Longitude', 'Price_INR'] ... and more if any
+Target: Price_INR found.

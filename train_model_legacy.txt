@@ -1,0 +1,338 @@
+"""
+House Price Prediction - Model Training Pipeline
+=================================================
+Trains multiple regression models on the California Housing dataset,
+tunes hyperparameters via GridSearchCV, evaluates all candidates on a
+held-out test set, and persists the best-performing model to disk.
+
+GPU acceleration is used for XGBoost when an NVIDIA GPU is available.
+"""
+
+import logging
+import warnings
+from pathlib import Path
+from typing import Any
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.datasets import fetch_california_housing
+from sklearn.ensemble import (
+    GradientBoostingRegressor,
+    RandomForestRegressor,
+    VotingRegressor,
+)
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.preprocessing import StandardScaler
+from xgboost import XGBRegressor
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+MODEL_OUTPUT_PATH = Path(__file__).parent / "model.pkl"
+TEST_SIZE = 0.2
+RANDOM_STATE = 42
+CV_FOLDS = 3
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-7s | %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger(__name__)
+
+warnings.filterwarnings("ignore")
+
+
+# ---------------------------------------------------------------------------
+# Data Loading
+# ---------------------------------------------------------------------------
+
+def load_data() -> tuple[pd.DataFrame, np.ndarray, list[str]]:
+    """Load the California Housing dataset and return features, target, and
+    feature names."""
+    data = fetch_california_housing()
+    X = pd.DataFrame(data.data, columns=data.feature_names)
+    y = data.target  # median house value in $100k
+    log.info("Loaded dataset: %d samples, %d features", X.shape[0], X.shape[1])
+    return X, y, list(X.columns)
+
+
+# ---------------------------------------------------------------------------
+# Preprocessing
+# ---------------------------------------------------------------------------
+
+def preprocess(
+    X: pd.DataFrame, y: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, StandardScaler]:
+    """Split into train/test sets and apply standard scaling."""
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
+    )
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    log.info("Train set: %d | Test set: %d", len(y_train), len(y_test))
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+
+
+# ---------------------------------------------------------------------------
+# GPU Detection
+# ---------------------------------------------------------------------------
+
+def detect_gpu() -> bool:
+    """Return True if an NVIDIA CUDA GPU is available for XGBoost."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi"], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            log.info("NVIDIA GPU detected - XGBoost will use CUDA acceleration")
+            return True
+    except Exception:
+        pass
+    log.info("No NVIDIA GPU detected - training will use CPU only")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Model Definitions
+# ---------------------------------------------------------------------------
+
+def build_model_configs(use_gpu: bool) -> dict[str, dict[str, Any]]:
+    """Return a dictionary mapping model names to their estimator and
+    hyperparameter grid for tuning."""
+
+    xgb_device = {"device": "cuda", "tree_method": "hist"} if use_gpu else {}
+
+    return {
+        "Linear Regression": {
+            "estimator": LinearRegression(),
+            "param_grid": None,
+        },
+        "Ridge Regression": {
+            "estimator": Ridge(),
+            "param_grid": {"alpha": [1.0, 10.0, 100.0]},
+        },
+        "Random Forest": {
+            "estimator": RandomForestRegressor(random_state=RANDOM_STATE),
+            "param_grid": {
+                "n_estimators": [200, 300],
+                "max_depth": [15, 20, None],
+                "min_samples_split": [2, 5],
+            },
+        },
+        "Gradient Boosting": {
+            "estimator": GradientBoostingRegressor(random_state=RANDOM_STATE),
+            "param_grid": {
+                "n_estimators": [200, 300],
+                "max_depth": [4, 5, 6],
+                "learning_rate": [0.05, 0.1],
+                "subsample": [0.8, 1.0],
+            },
+        },
+        "XGBoost": {
+            "estimator": XGBRegressor(
+                random_state=RANDOM_STATE, verbosity=0, **xgb_device
+            ),
+            "param_grid": {
+                "n_estimators": [200, 300],
+                "max_depth": [4, 5, 6],
+                "learning_rate": [0.05, 0.1],
+                "subsample": [0.8, 1.0],
+                "colsample_bytree": [0.8, 1.0],
+            },
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Training
+# ---------------------------------------------------------------------------
+
+def train_model(
+    name: str,
+    estimator: Any,
+    param_grid: dict | None,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+) -> Any:
+    """Train a single model, optionally with grid search. Returns the fitted
+    estimator."""
+    if param_grid:
+        log.info("Tuning %-20s (%d param combos)", name, _grid_size(param_grid))
+        gs = GridSearchCV(
+            estimator,
+            param_grid,
+            cv=CV_FOLDS,
+            scoring="r2",
+            n_jobs=-1,
+            verbose=0,
+        )
+        gs.fit(X_train, y_train)
+        log.info("  Best params: %s", gs.best_params_)
+        return gs.best_estimator_
+    else:
+        estimator.fit(X_train, y_train)
+        return estimator
+
+
+def _grid_size(grid: dict) -> int:
+    """Calculate total number of parameter combinations."""
+    size = 1
+    for values in grid.values():
+        size *= len(values)
+    return size
+
+
+def train_all_models(
+    configs: dict[str, dict[str, Any]],
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+) -> dict[str, Any]:
+    """Train all configured models and return a name -> fitted model dict."""
+    models = {}
+    for name, cfg in configs.items():
+        models[name] = train_model(
+            name, cfg["estimator"], cfg["param_grid"], X_train, y_train
+        )
+    return models
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+def evaluate_models(
+    models: dict[str, Any],
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+) -> pd.DataFrame:
+    """Evaluate all models and return a sorted results DataFrame."""
+    records = []
+    for name, model in models.items():
+        preds = model.predict(X_test)
+        records.append({
+            "Model": name,
+            "R2": r2_score(y_test, preds),
+            "MAE": mean_absolute_error(y_test, preds),
+            "RMSE": np.sqrt(mean_squared_error(y_test, preds)),
+        })
+    df = pd.DataFrame(records).sort_values("R2", ascending=False).reset_index(drop=True)
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Ensemble
+# ---------------------------------------------------------------------------
+
+def build_ensemble(
+    results: pd.DataFrame,
+    models: dict[str, Any],
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    top_n: int = 3,
+) -> tuple[dict[str, Any], pd.DataFrame]:
+    """Build a VotingRegressor from the top-N models and append its result."""
+    top_names = results.head(top_n)["Model"].tolist()
+    log.info("Building voting ensemble from top %d: %s", top_n, top_names)
+
+    estimators = [(name, models[name]) for name in top_names]
+    ensemble = VotingRegressor(estimators=estimators)
+    ensemble.fit(X_train, y_train)
+
+    preds = ensemble.predict(X_test)
+    ensemble_row = pd.DataFrame([{
+        "Model": f"Voting Ensemble (Top {top_n})",
+        "R2": r2_score(y_test, preds),
+        "MAE": mean_absolute_error(y_test, preds),
+        "RMSE": np.sqrt(mean_squared_error(y_test, preds)),
+    }])
+
+    models[f"Voting Ensemble (Top {top_n})"] = ensemble
+    results = pd.concat([results, ensemble_row], ignore_index=True)
+    results = results.sort_values("R2", ascending=False).reset_index(drop=True)
+    return models, results
+
+
+# ---------------------------------------------------------------------------
+# Persistence
+# ---------------------------------------------------------------------------
+
+def save_best_model(
+    results: pd.DataFrame,
+    models: dict[str, Any],
+    scaler: StandardScaler,
+    feature_names: list[str],
+    output_path: Path = MODEL_OUTPUT_PATH,
+) -> None:
+    """Persist the best-performing model along with the scaler and metadata."""
+    best_name = results.iloc[0]["Model"]
+    best_r2 = results.iloc[0]["R2"]
+    best_model = models[best_name]
+
+    artifact = {
+        "model": best_model,
+        "scaler": scaler,
+        "feature_names": feature_names,
+        "best_model_name": best_name,
+        "best_r2": float(best_r2),
+    }
+    joblib.dump(artifact, output_path)
+    log.info("Saved best model to %s", output_path)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    """Entry point: load data, train models, evaluate, and save."""
+    log.info("=" * 55)
+    log.info("House Price Prediction - Model Training")
+    log.info("=" * 55)
+
+    # Data
+    X, y, feature_names = load_data()
+
+    # Preprocessing
+    X_train, X_test, y_train, y_test, scaler = preprocess(X, y)
+
+    # GPU detection
+    use_gpu = detect_gpu()
+
+    # Model configs
+    configs = build_model_configs(use_gpu)
+
+    # Training
+    models = train_all_models(configs, X_train, y_train)
+
+    # Evaluation
+    results = evaluate_models(models, X_test, y_test)
+
+    # Ensemble
+    models, results = build_ensemble(
+        results, models, X_train, y_train, X_test, y_test
+    )
+
+    # Print results
+    log.info("Model Evaluation Results (Test Set):")
+    print("\n" + results.to_string(index=False) + "\n")
+
+    # Save
+    best_name = results.iloc[0]["Model"]
+    best_r2 = results.iloc[0]["R2"]
+    log.info("Best model: %s  (R2 = %.4f)", best_name, best_r2)
+    save_best_model(results, models, scaler, feature_names)
+
+    log.info("Training complete.")
+
+
+if __name__ == "__main__":
+    main()

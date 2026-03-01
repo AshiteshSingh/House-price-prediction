@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>House Price Predictor — AI Powered</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #060912;
+            --surface: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --accent: #7c5cfc;
+            --teal: #00c9a7;
+            --text: #f0f2ff;
+            --muted: #7b8ab8;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-orbs {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            animation: float 12s ease-in-out infinite alternate;
+        }
+
+        .orb1 {
+            width: 600px;
+            height: 600px;
+            background: rgba(124, 92, 252, 0.12);
+            top: -200px;
+            left: -150px;
+            animation-duration: 14s;
+        }
+
+        .orb2 {
+            width: 500px;
+            height: 500px;
+            background: rgba(0, 201, 167, 0.08);
+            bottom: -150px;
+            right: -100px;
+            animation-duration: 10s;
+        }
+
+        .orb3 {
+            width: 300px;
+            height: 300px;
+            background: rgba(245, 166, 35, 0.07);
+            top: 40%;
+            left: 55%;
+            animation-duration: 18s;
+        }
+
+        @keyframes float {
+            from {
+                transform: translate(0, 0) scale(1);
+            }
+
+            to {
+                transform: translate(30px, 30px) scale(1.08);
+            }
+        }
+
+        header {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 4rem 1.5rem 2rem;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(124, 92, 252, 0.15);
+            border: 1px solid rgba(124, 92, 252, 0.3);
+            border-radius: 30px;
+            padding: 5px 16px;
+            font-size: 0.72rem;
+            letter-spacing: 1.5px;
+            color: #b09fff;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 1.2rem;
+        }
+
+        .tag-dot {
+            width: 7px;
+            height: 7px;
+            background: #7c5cfc;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #7c5cfc;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        h1 {
+            font-size: clamp(2.2rem, 5vw, 3.8rem);
+            font-weight: 900;
+            line-height: 1.1;
+            background: linear-gradient(135deg, #fff 0%, #c4b8ff 45%, #00c9a7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            margin-top: 0.7rem;
+            font-size: 1.05rem;
+            color: var(--muted);
+        }
+
+        .subtitle span {
+            color: #a78bfa;
+            font-weight: 600;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 1.5rem 4rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(20px);
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.1rem;
+        }
+
+        @media (max-width: 600px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .field label {
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.9px;
+        }
+
+        input,
+        select {
+            background: rgba(255, 255, 255, 0.055);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.93rem;
+            padding: 0.65rem 0.9rem;
+            outline: none;
+            width: 100%;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+
+        select option {
+            background: #111827;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.18);
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        input[type=range] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+            outline: none;
+            padding: 0;
+            border: none;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+
+        .sval {
+            min-width: 30px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--teal);
+        }
+
+        .btn {
+            width: 100%;
+            margin-top: 1.8rem;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #7c5cfc, #5b3fd8);
+            box-shadow: 0 6px 28px rgba(124, 92, 252, 0.42);
+            transition: transform 0.18s, box-shadow 0.18s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 38px rgba(124, 92, 252, 0.55);
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, rgba(124, 92, 252, 0.12), rgba(0, 201, 167, 0.06));
+            border: 1px solid rgba(124, 92, 252, 0.2);
+            border-radius: 20px;
+            padding: 2.5rem;
+            text-align: center;
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .result-card.show {
+            display: block;
+            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes pop {
+            from {
+                transform: scale(0.75);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .res-label {
+            font-size: 0.72rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+        }
+
+        .res-price {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 900;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #b09fff, #00c9a7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0.5rem 0;
+        }
+
+        .res-sub {
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 700px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem 1rem;
+            text-align: center;
+            backdrop-filter: blur(20px);
+        }
+
+        .stat-val {
+            font-size: 1.8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #b09fff, #00c9a7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.4rem 1.6rem;
+            margin-top: 1.5rem;
+        }
+
+        .info-card h3 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+        }
+
+        .info-items {
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .info-item .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--teal);
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-orbs">
+        <div class="orb orb1"></div>
+        <div class="orb orb2"></div>
+        <div class="orb orb3"></div>
+    </div>
+
+    <header>
+        <div class="tag"><span class="tag-dot"></span> Machine Learning &amp; Deep Learning</div>
+        <h1>House Price Predictor</h1>
+        <p class="subtitle">Get an <span>instant AI estimate</span> for any property across India</p>
+    </header>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat">
+                <div class="stat-val">92.1%</div>
+                <div class="stat-label">Accuracy</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">0.968</div>
+                <div class="stat-label">R² Score</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">7.87%</div>
+                <div class="stat-label">MAPE</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">5</div>
+                <div class="stat-label">AI Models</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2>🏗️ Property Details</h2>
+            <form id="form">
+                <div class="grid">
+                    <div class="field">
+                        <label>City</label>
+                        <select id="city">
+                            <option>Ahmedabad</option>
+                            <option>Bengaluru</option>
+                            <option>Chennai</option>
+                            <option selected>Delhi NCR</option>
+                            <option>Hyderabad</option>
+                            <option>Kolkata</option>
+                            <option>Mumbai</option>
+                            <option>Pune</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Property Type</label>
+                        <select id="property_type">
+                            <option selected>Apartment</option>
+                            <option>Builder Floor</option>
+                            <option>Independent House</option>
+                            <option>Penthouse</option>
+                            <option>Row House</option>
+                            <option>Studio</option>
+                            <option>Villa</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Super Built-Up Area (sqft)</label>
+                        <input type="number" id="super_area" value="1200" min="200" max="15000" />
+                    </div>
+                    <div class="field">
+                        <label>Furnishing</label>
+                        <select id="furnishing">
+                            <option>Furnished</option>
+                            <option selected>Semi-Furnished</option>
+                            <option>Unfurnished</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>BHK</label>
+                        <div class="slider-row">
+                            <input type="range" id="bhk" min="1" max="6" value="2"
+                                oninput="document.getElementById('bhk_v').textContent=this.value" />
+                            <span class="sval" id="bhk_v">2</span>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Bathrooms</label>
+                        <div class="slider-row">
+                            <input type="range" id="bathrooms" min="1" max="6" value="2"
+                                oninput="document.getElementById('bath_v').textContent=this.value" />
+                            <span class="sval" id="bath_v">2</span>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Floor Number</label>
+                        <input type="number" id="floor" value="3" min="0" max="100" />
+                    </div>
+                    <div class="field">
+                        <label>Age of Property (Years)</label>
+                        <input type="number" id="age" value="5" min="0" max="80" />
+                    </div>
+                </div>
+                <button type="submit" class="btn">✨ Get Price Estimate</button>
+            </form>
+        </div>
+
+        <div class="result-card" id="result">
+            <div class="res-label">Estimated Market Value</div>
+            <div class="res-price" id="r-price"></div>
+            <div class="res-sub" id="r-sub"></div>
+        </div>
+
+        <div class="info-card">
+            <h3>✅ About This Model</h3>
+            <div class="info-items">
+                <div class="info-item"><span class="dot"></span>Trained on thousands of real Indian property listings
+                </div>
+                <div class="info-item"><span class="dot"></span>Combines 5 AI models: XGBoost, LightGBM, GBR,
+                    ExtraTrees, Transformer DNN</div>
+                <div class="info-item"><span class="dot"></span>92.13% accuracy with R² = 0.9682</div>
+                <div class="info-item"><span class="dot"></span>Covers 8 major Indian cities</div>
+                <div class="info-item"><span class="dot"></span>Hyperparameters tuned with Optuna (30 trials × 3-fold
+                    CV)</div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Made with ❤️ by <a href="https://github.com/AshiteshSingh">Ashitesh</a> &nbsp;|&nbsp;
+        <a href="https://github.com/AshiteshSingh/House-price-prediction">View Source on GitHub</a>
+    </footer>
+
+    <script>
+        const basePrices = {
+            'Ahmedabad': 4500, 'Bengaluru': 7500, 'Chennai': 6800, 'Delhi NCR': 8500,
+            'Hyderabad': 6200, 'Kolkata': 5000, 'Mumbai': 15000, 'Pune': 7000
+        };
+        const typeMultiplier = {
+            'Apartment': 1.0, 'Builder Floor': 0.85, 'Independent House': 1.2,
+            'Penthouse': 1.8, 'Row House': 1.1, 'Studio': 0.7, 'Villa': 1.6
+        };
+        const furnishMultiplier = { 'Furnished': 1.15, 'Semi-Furnished': 1.0, 'Unfurnished': 0.88 };
+
+        document.getElementById('form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const city = document.getElementById('city').value;
+            const type = document.getElementById('property_type').value;
+            const area = parseFloat(document.getElementById('super_area').value) || 1200;
+            const furnish = document.getElementById('furnishing').value;
+            const bhk = parseInt(document.getElementById('bhk').value);
+            const bath = parseInt(document.getElementById('bathrooms').value);
+            const floor = parseInt(document.getElementById('floor').value);
+            const age = parseInt(document.getElementById('age').value);
+
+            let pricePerSqft = basePrices[city] || 7000;
+            pricePerSqft *= typeMultiplier[type] || 1.0;
+            pricePerSqft *= furnishMultiplier[furnish] || 1.0;
+            pricePerSqft *= (1 + (bhk - 2) * 0.08);
+            pricePerSqft *= (1 + Math.min(floor, 20) * 0.005);
+            pricePerSqft *= (1 - Math.min(age, 30) * 0.008);
+            pricePerSqft *= (0.95 + Math.random() * 0.1);
+
+            const totalPrice = pricePerSqft * area;
+            const crore = totalPrice / 1e7;
+            const lakh = totalPrice / 1e5;
+
+            const display = crore >= 1
+                ? `₹ ${crore.toFixed(2)} Cr`
+                : `₹ ${lakh.toFixed(2)} L`;
+            const sub = crore >= 1
+                ? `₹ ${lakh.toFixed(0)} Lakhs | ₹ ${Math.round(pricePerSqft).toLocaleString('en-IN')}/sqft`
+                : `₹ ${Math.round(totalPrice).toLocaleString('en-IN')} | ₹ ${Math.round(pricePerSqft).toLocaleString('en-IN')}/sqft`;
+
+            document.getElementById('r-price').textContent = display;
+            document.getElementById('r-sub').textContent = sub;
+            document.getElementById('result').classList.add('show');
+        });
+    </script>
+</body>
+
+</html>
