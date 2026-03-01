@@ -426,30 +426,18 @@
     </div>
 
     <header>
-        <div class="tag"><span class="tag-dot"></span> Machine Learning &amp; Deep Learning</div>
         <h1>House Price Predictor</h1>
-        <p class="subtitle">Get an <span>instant AI estimate</span> for any property across India</p>
+        <p class="subtitle">Get an <span>instant estimate</span> for any property across India</p>
+        <p
+            style="font-size: 0.85rem; color: var(--muted); margin-top: 1rem; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+            <em>Note: This web demo provides a quick estimate based on market heuristics. For the full 92.1% accurate
+                Machine Learning & Deep Learning model results, please check out the Jupyter Notebooks in the <a
+                    href="https://github.com/AshiteshSingh/House-price-prediction"
+                    style="color: var(--accent); text-decoration: none;">GitHub repository</a>.</em>
+        </p>
     </header>
 
     <div class="container">
-        <div class="stats-grid">
-            <div class="stat">
-                <div class="stat-val">92.1%</div>
-                <div class="stat-label">Accuracy</div>
-            </div>
-            <div class="stat">
-                <div class="stat-val">0.968</div>
-                <div class="stat-label">R² Score</div>
-            </div>
-            <div class="stat">
-                <div class="stat-val">7.87%</div>
-                <div class="stat-label">MAPE</div>
-            </div>
-            <div class="stat">
-                <div class="stat-val">5</div>
-                <div class="stat-label">AI Models</div>
-            </div>
-        </div>
 
         <div class="card" style="margin-top: 1.5rem;">
             <h2>🏗️ Property Details</h2>
@@ -527,19 +515,6 @@
             <div class="res-sub" id="r-sub"></div>
         </div>
 
-        <div class="info-card">
-            <h3>✅ About This Model</h3>
-            <div class="info-items">
-                <div class="info-item"><span class="dot"></span>Trained on thousands of real Indian property listings
-                </div>
-                <div class="info-item"><span class="dot"></span>Combines 5 AI models: XGBoost, LightGBM, GBR,
-                    ExtraTrees, Transformer DNN</div>
-                <div class="info-item"><span class="dot"></span>92.13% accuracy with R² = 0.9682</div>
-                <div class="info-item"><span class="dot"></span>Covers 8 major Indian cities</div>
-                <div class="info-item"><span class="dot"></span>Hyperparameters tuned with Optuna (30 trials × 3-fold
-                    CV)</div>
-            </div>
-        </div>
     </div>
 
     <footer>
