@@ -43,7 +43,63 @@ model_gbr    = artifact["model_gbr"]
 model_et     = artifact["model_et"]
 meta         = artifact["meta_learner"]
 
-from trainme import TransformerResNetDNN, predict_pytorch_dnn
+import torch.nn as nn
+
+def silu_act(x):
+    return x * torch.sigmoid(x)
+
+class TransformerResNetDNN(nn.Module):
+    def __init__(self, input_dim, units1=1024, units2=512, units3=256, dropout_rate=0.4):
+        super().__init__()
+        self.fc1 = nn.Linear(input_dim, units1)
+        self.bn1 = nn.BatchNorm1d(units1)
+        self.drop1 = nn.Dropout(dropout_rate)
+        
+        self.res1 = nn.Linear(units1, units2)
+        self.bn_res1 = nn.BatchNorm1d(units2)
+        self.drop_res = nn.Dropout(dropout_rate * 0.75)
+        
+        self.res2 = nn.Linear(units2, units2)
+        self.bn_res2 = nn.BatchNorm1d(units2)
+        
+        self.x_proj = nn.Linear(units1, units2)
+        
+        self.attn_proj = nn.Linear(input_dim, 64)
+        self.attn = nn.MultiheadAttention(embed_dim=64, num_heads=4, batch_first=True)
+        self.attn_norm = nn.LayerNorm(64)
+        
+        self.merge_fc1 = nn.Linear(units2 + 64, units3)
+        self.bn_merge = nn.BatchNorm1d(units3)
+        self.drop_merge = nn.Dropout(dropout_rate * 0.5)
+        self.merge_fc2 = nn.Linear(units3, 64)
+        self.output_fc = nn.Linear(64, 1)
+
+    def forward(self, x):
+        h = silu_act(self.bn1(self.fc1(x)))
+        h = self.drop1(h)
+
+        res = silu_act(self.bn_res1(self.res1(h)))
+        res = self.drop_res(res)
+        res = silu_act(self.bn_res2(self.res2(res)))
+        h = silu_act(self.x_proj(h) + res)
+
+        seq = self.attn_proj(x).unsqueeze(1)
+        attn_out, _ = self.attn(seq, seq, seq)
+        attn_out = self.attn_norm(attn_out + seq)
+        attn_flat = attn_out.mean(dim=1)
+
+        merged = torch.cat([h, attn_flat], dim=1)
+        merged = silu_act(self.bn_merge(self.merge_fc1(merged)))
+        merged = self.drop_merge(merged)
+        merged = silu_act(self.merge_fc2(merged))
+        return self.output_fc(merged).squeeze(-1)
+
+def predict_pytorch_dnn(model, device, X):
+    model.eval()
+    with torch.no_grad():
+        X_t = torch.tensor(X, dtype=torch.float32).to(device)
+        return model(X_t).cpu().numpy()
+
 DNN_PATH = BASE / "custom_hybrid_dnn.pt"
 dnn_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
