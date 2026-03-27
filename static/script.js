@@ -78,7 +78,7 @@
     // ---------------------------------------------------------------
 
     async function fetchPrediction(payload) {
-        const response = await fetch("/predict", {
+        const response = await fetch("https://jarvisai1234-house-price-prediction-india.hf.space/predict", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
