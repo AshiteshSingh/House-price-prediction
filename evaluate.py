@@ -1,56 +1,76 @@
 import warnings; warnings.filterwarnings("ignore")
-import os; os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import joblib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.model_selection import train_test_split
-import tensorflow as tf
+import torch
 
-artifact   = joblib.load("custom_hybrid_model.pkl")
+from trainme import TransformerResNetDNN, predict_pytorch_dnn, engineer_features
+
+artifact = joblib.load("custom_hybrid_model.pkl")
 preprocessor = artifact["preprocessor"]
-model_xgb  = artifact["model_xgb"]
-model_lgb  = artifact["model_lgb"]
-model_gbr  = artifact["model_gbr"]
-model_et   = artifact["model_et"]
-meta       = artifact["meta_learner"]
-model_dnn  = tf.keras.models.load_model("custom_hybrid_keras.keras")
+models = artifact["models_dict"]
+meta = artifact["meta_learner"]
+eng_feat = artifact.get("engineer_features", engineer_features)
 
-df = (pd.read_csv("Training_dataset/train_part1.csv", on_bad_lines="skip")
+df_raw = (pd.read_csv("Training_dataset/train_part1.csv", on_bad_lines="skip")
         .dropna(axis=1, how="all").dropna(subset=["Price_INR"]))
+df = eng_feat(df_raw)
+
 _, X_val, _, y_val = train_test_split(
-    df.drop(columns=["Price_INR"]), df["Price_INR"], test_size=0.2, random_state=42)
+    df.drop(columns=["Price_INR"]), df["Price_INR"], test_size=0.15, random_state=42)
 
-X_p   = preprocessor.transform(X_val)
-v_xgb = model_xgb.predict(X_p)
-v_lgb = model_lgb.predict(X_p)
-v_gbr = model_gbr.predict(X_p)
-v_et  = model_et.predict(X_p)
-v_dnn = model_dnn.predict(X_p, verbose=0).flatten()
+X_p = preprocessor.transform(X_val)
+input_dim = X_p.shape[1]
 
-preds   = np.expm1(meta.predict(np.column_stack((v_xgb, v_lgb, v_gbr, v_et, v_dnn))))
-y_arr   = np.array(y_val)
-errors  = y_arr - preds
+dnn_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model_dnn = TransformerResNetDNN(input_dim).to(dnn_device)
+model_dnn.load_state_dict(torch.load("custom_hybrid_dnn.pt", map_location=dnn_device, weights_only=True))
+model_dnn.eval()
+
+# Generate predictions for all base learners
+val_preds = np.zeros((X_p.shape[0], len(models) + 1))
+model_names = list(models.keys()) + ["Keras DNN"]
+model_r2s = []
+
+col_idx = 0
+for name, m in models.items():
+    p = m.predict(X_p)
+    val_preds[:, col_idx] = p
+    model_r2s.append(r2_score(y_val, np.expm1(p)))
+    col_idx += 1
+
+# DNN prediction
+p_dnn = predict_pytorch_dnn(model_dnn, dnn_device, X_p)
+val_preds[:, col_idx] = p_dnn
+model_r2s.append(r2_score(y_val, np.expm1(p_dnn)))
+
+preds = np.expm1(meta.predict(val_preds))
+y_arr = np.array(y_val)
+errors = y_arr - preds
 abs_err = np.abs(errors)
 pct_err = abs_err / y_arr * 100
 
-r2   = r2_score(y_arr, preds)
-mae  = mean_absolute_error(y_arr, preds)
+r2 = r2_score(y_arr, preds)
+mae = mean_absolute_error(y_arr, preds)
 rmse = np.sqrt(mean_squared_error(y_arr, preds))
 mape = float(pct_err.mean())
 
 print(f"R2={r2:.4f}  MAE={mae:,.0f}  RMSE={rmse:,.0f}  MAPE={mape:.2f}%")
 
+model_names.append("Meta Stack")
+model_r2s.append(r2)
+
 sns.set_theme(style="darkgrid", palette="muted")
-fig1, axes = plt.subplots(2, 2, figsize=(14, 11))
+fig1, axes = plt.subplots(2, 2, figsize=(16, 12))
 fig1.suptitle(
-    f"Ultra Hybrid Model — Performance Report\nR² = {r2:.4f} | MAE = ₹{mae/1e6:.2f}M | MAPE = {mape:.2f}%",
-    fontsize=15, fontweight="bold", y=1.01
+    f"Ultra Hybrid Model (v2) — Performance Report\nR² = {r2:.4f} | MAE = ₹{mae/1e6:.2f}M | MAPE = {mape:.2f}%",
+    fontsize=16, fontweight="bold", y=1.02
 )
 
 ax = axes[0, 0]
@@ -82,17 +102,14 @@ ax.set_title("Error Distribution (% Error)")
 ax.legend()
 
 ax = axes[1, 1]
-model_names  = ["XGBoost", "LightGBM", "GBR", "ExtraTrees", "Keras DNN", "Meta Stack"]
-model_raw    = [v_xgb, v_lgb, v_gbr, v_et, v_dnn]
-model_r2s    = [r2_score(y_arr, np.expm1(r)) for r in model_raw] + [r2]
-colors       = ["#4C72B0", "#55A868", "#C44E52", "#8172B2", "#CCB974", "#e84393"]
-bars = ax.barh(model_names, model_r2s, color=colors, edgecolor="white", height=0.55)
+colors = sns.color_palette("husl", len(model_names))
+bars = ax.barh(model_names, model_r2s, color=colors, edgecolor="white", height=0.6)
 for bar, val in zip(bars, model_r2s):
     ax.text(bar.get_width() + 0.002, bar.get_y() + bar.get_height()/2,
             f"{val:.4f}", va="center", fontsize=9, fontweight="bold")
 ax.set_xlabel("R² Score")
 ax.set_title("Individual Model vs Final Stack R²")
-ax.set_xlim(0, 1.08)
+ax.set_xlim(0, 1.05)
 ax.axvline(r2, color="red", linestyle="--", lw=1.5, label=f"Final={r2:.4f}")
 ax.legend()
 

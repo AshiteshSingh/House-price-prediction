@@ -252,7 +252,10 @@ def predict():
         v_lgb = model_lgb.predict(X_p)
         v_gbr = model_gbr.predict(X_p)
         v_et  = model_et.predict(X_p)
-        v_dnn = predict_pytorch_dnn(model_dnn, dnn_device, X_p)
+        try:
+            v_dnn = predict_pytorch_dnn(model_dnn, dnn_device, X_p)
+        except Exception:
+            v_dnn = (v_xgb + v_lgb + v_gbr + v_et) / 4.0
 
         pred_log = meta.predict(np.column_stack((v_xgb, v_lgb, v_gbr, v_et, v_dnn)))
         price    = float(np.expm1(pred_log)[0])
