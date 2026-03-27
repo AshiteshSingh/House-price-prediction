@@ -72,22 +72,25 @@ Think of it like asking 5 real estate experts and then taking the smartest avera
 
 ## 🧠 How It Works (Simple Explanation)
 
-```
-Property Details (City, BHK, Area, Floor, etc.)
-                    ↓
-         Clean & Prepare the Data
-                    ↓
-    ┌───────────────┼───────────────┐
-    ↓               ↓               ↓
- XGBoost        LightGBM      3 More Models
- (Prediction)   (Prediction)   (Predictions)
-    ↓               ↓               ↓
-    └───────────────┼───────────────┘
-                    ↓
-         Meta-Learner (XGBoost)
-       Combines all 5 predictions
-                    ↓
-          Final Price Estimate
+```mermaid
+graph TD
+    A[Property Details <br> City, BHK, Area, Floor, etc.] --> B[Clean & Prepare the Data]
+    B --> C[XGBoost <br> Prediction]
+    B --> D[LightGBM <br> Prediction]
+    B --> E[3 More Models <br> Predictions]
+    C --> F[Meta-Learner XGBoost <br> Combines all 5 predictions]
+    D --> F
+    E --> F
+    F --> G[Final Price Estimate]
+    
+    classDef default fill:#1f2937,stroke:#3b82f6,stroke-width:2px,color:#f9fafb
+    classDef data fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff
+    classDef model fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff
+    classDef final fill:#9f1239,stroke:#f43f5e,stroke-width:2px,color:#fff
+
+    class A,B data
+    class C,D,E model
+    class F,G final
 ```
 
 **5 Models Used:**
@@ -101,9 +104,11 @@ All 5 predictions are combined by a **Meta-Learner** (stacking) for the final an
 
 ---
 
-## 🌐 Live Demo
+## 🌐 Live Demo & Model Download
 
 👉 **[Try the Web App on GitHub Pages](https://ashiteshsingh.github.io/House-price-prediction/)**
+
+⬇️ **[Download the Deployed Model from Hugging Face](https://huggingface.co/spaces/jarvisai1234/house-price-prediction-india/tree/main)**
 
 ---
 
