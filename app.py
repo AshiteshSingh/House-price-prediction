@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
 from huggingface_hub import hf_hub_download
 
 BASE = Path(__file__).parent
@@ -32,6 +33,7 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)  # Allow cross-origin requests from GitHub Pages
 
 artifact     = joblib.load(MODEL_PATH)
 preprocessor = artifact["preprocessor"]
@@ -160,5 +162,5 @@ def predict():
 
 
 if __name__ == "__main__":
-    log.info("Starting server at http://127.0.0.1:5000")
-    app.run(debug=False, port=5000)
+    log.info("Starting server at http://0.0.0.0:7860")
+    app.run(debug=False, host="0.0.0.0", port=7860)
