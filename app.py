@@ -103,8 +103,22 @@ def predict_pytorch_dnn(model, device, X):
 DNN_PATH = BASE / "custom_hybrid_dnn.pt"
 dnn_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-first_df = pd.read_csv(BASE / "Training_dataset" / "train_part1.csv", on_bad_lines='skip', nrows=5).dropna(axis=1, how='all')
-input_dim = preprocessor.transform(first_df.drop(columns=['Price_INR'], errors='ignore')).shape[1]
+dummy_row = {
+    "ListingID": "WEB", "City": "Mumbai", "Locality": "X",
+    "PropertyType": "Apartment", "BHK": 2, "Bathrooms": 2.0, 
+    "Balconies": 1.0, "Furnishing": "Semi-Furnished", 
+    "SuperBuiltUpArea_sqft": 1000.0, "BuiltUpArea_sqft": 850.0, 
+    "CarpetArea_sqft": 700.0, "Floor": 3, "TotalFloors": 10, 
+    "Parking": "Covered", "BuildingType": "Society", 
+    "YearBuilt": 2021.0, "AgeYears": 5, "Facing": "East", 
+    "AmenitiesCount": 5, "IsRERARegistered": True, "RERAID": "N/A", 
+    "Latitude": 19.0, "Longitude": 72.0,
+}
+df_dummy = pd.DataFrame([dummy_row])
+eng_f = artifact.get("engineer_features")
+if eng_f: df_dummy = eng_f(df_dummy)
+input_dim = preprocessor.transform(df_dummy).shape[1]
+
 model_dnn = TransformerResNetDNN(input_dim).to(dnn_device)
 if DNN_PATH.exists():
     model_dnn.load_state_dict(torch.load(DNN_PATH, map_location=dnn_device, weights_only=True))
