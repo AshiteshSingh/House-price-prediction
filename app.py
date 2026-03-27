@@ -103,21 +103,63 @@ def predict_pytorch_dnn(model, device, X):
 DNN_PATH = BASE / "custom_hybrid_dnn.pt"
 dnn_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dummy_row = {
-    "ListingID": "WEB", "City": "Mumbai", "Locality": "X",
-    "PropertyType": "Apartment", "BHK": 2, "Bathrooms": 2.0, 
-    "Balconies": 1.0, "Furnishing": "Semi-Furnished", 
-    "SuperBuiltUpArea_sqft": 1000.0, "BuiltUpArea_sqft": 850.0, 
-    "CarpetArea_sqft": 700.0, "Floor": 3, "TotalFloors": 10, 
-    "Parking": "Covered", "BuildingType": "Society", 
-    "YearBuilt": 2021.0, "AgeYears": 5, "Facing": "East", 
-    "AmenitiesCount": 5, "IsRERARegistered": True, "RERAID": "N/A", 
-    "Latitude": 19.0, "Longitude": 72.0,
+CITY_CENTERS = {
+    'Mumbai': (19.0760, 72.8777), 'Delhi NCR': (28.6139, 77.2090),
+    'Bengaluru': (12.9716, 77.5946), 'Chennai': (13.0827, 80.2707),
+    'Hyderabad': (17.3850, 78.4867), 'Pune': (18.5204, 73.8567),
+    'Kolkata': (22.5726, 88.3639), 'Ahmedabad': (23.0225, 72.5714)
 }
-df_dummy = pd.DataFrame([dummy_row])
-eng_f = artifact.get("engineer_features")
-if eng_f: df_dummy = eng_f(df_dummy)
-input_dim = preprocessor.transform(df_dummy).shape[1]
+
+def haversine_dist(lat1, lon1, lat2, lon2):
+    import math
+    R = 6371.0
+    r_lat1, r_lon1 = math.radians(lat1), math.radians(lon1)
+    r_lat2, r_lon2 = math.radians(lat2), math.radians(lon2)
+    dlat = r_lat2 - r_lat1
+    dlon = r_lon2 - r_lon1
+    a = math.sin(dlat/2)**2 + math.cos(r_lat1)*math.cos(r_lat2)*math.sin(dlon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+def engineer_features(df):
+    df_feat = df.copy()
+    num_cols = ['SuperBuiltUpArea_sqft', 'BHK', 'Bathrooms', 'CarpetArea_sqft', 'Floor', 'TotalFloors', 'AmenitiesCount', 'AgeYears']
+    for col in num_cols:
+        if col in df_feat.columns: df_feat[col] = pd.to_numeric(df_feat[col], errors='coerce')
+    
+    if 'SuperBuiltUpArea_sqft' in df_feat.columns and 'BHK' in df_feat.columns:
+        df_feat['Area_per_BHK'] = df_feat['SuperBuiltUpArea_sqft'] / df_feat['BHK'].clip(lower=1)
+        df_feat['BHK_Area_Interaction'] = df_feat['BHK'] * df_feat['SuperBuiltUpArea_sqft']
+    if 'SuperBuiltUpArea_sqft' in df_feat.columns and 'Bathrooms' in df_feat.columns:
+        df_feat['Area_per_Bath'] = df_feat['SuperBuiltUpArea_sqft'] / df_feat['Bathrooms'].clip(lower=1)
+    if 'SuperBuiltUpArea_sqft' in df_feat.columns and 'CarpetArea_sqft' in df_feat.columns:
+        df_feat['Carpet_to_Super_Ratio'] = df_feat['CarpetArea_sqft'] / df_feat['SuperBuiltUpArea_sqft'].clip(lower=1)
+    if 'Floor' in df_feat.columns and 'TotalFloors' in df_feat.columns:
+        df_feat['Floor_Ratio'] = df_feat['Floor'] / df_feat['TotalFloors'].clip(lower=1)
+        df_feat['Is_Top_Floor'] = (df_feat['Floor'] == df_feat['TotalFloors']).astype(int)
+        df_feat['Is_Ground_Floor'] = (df_feat['Floor'] <= 1).astype(int)
+    if 'AgeYears' in df_feat.columns:
+        bins = [-1, 1, 5, 10, 20, 100]
+        labels = ['Brand New', '1-5 Yrs', '5-10 Yrs', '10-20 Yrs', '20+ Yrs']
+        df_feat['Age_Binned'] = pd.cut(df_feat['AgeYears'].fillna(5), bins=bins, labels=labels, right=True).astype(str)
+    if 'BHK' in df_feat.columns and 'Bathrooms' in df_feat.columns:
+        df_feat['Bath_per_BHK'] = df_feat['Bathrooms'] / df_feat['BHK'].clip(lower=1)
+        df_feat['Unusual_Bath_Ratio'] = (df_feat['Bath_per_BHK'] > 1.5).astype(int)
+    if 'SuperBuiltUpArea_sqft' in df_feat.columns:
+        df_feat['Log_Area'] = np.log1p(df_feat['SuperBuiltUpArea_sqft'].clip(lower=1))
+    if 'AmenitiesCount' in df_feat.columns and 'SuperBuiltUpArea_sqft' in df_feat.columns and 'BHK' in df_feat.columns:
+        df_feat['Luxury_Score'] = (df_feat['AmenitiesCount'] * df_feat['SuperBuiltUpArea_sqft']) / df_feat['BHK'].clip(lower=1)
+    if 'Latitude' in df_feat.columns and 'Longitude' in df_feat.columns and 'City' in df_feat.columns:
+        dists = []
+        for _, row in df_feat.iterrows():
+            city = str(row['City'])
+            lat, lon = row['Latitude'], row['Longitude']
+            if pd.isna(lat) or pd.isna(lon) or city not in CITY_CENTERS: dists.append(-1.0)
+            else: dists.append(haversine_dist(lat, lon, CITY_CENTERS[city][0], CITY_CENTERS[city][1]))
+        df_feat['City_Center_Distance_km'] = dists
+    return df_feat
+
+input_dim = 34
 
 model_dnn = TransformerResNetDNN(input_dim).to(dnn_device)
 if DNN_PATH.exists():
@@ -202,10 +244,7 @@ def predict():
         }
 
         df_input = pd.DataFrame([row])
-        
-        eng_feat = artifact.get("engineer_features")
-        if eng_feat:
-            df_input = eng_feat(df_input)
+        df_input = engineer_features(df_input)
         
         X_p = preprocessor.transform(df_input)
 
