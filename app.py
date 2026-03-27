@@ -1,5 +1,4 @@
 import os, warnings, logging
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 warnings.filterwarnings("ignore")
 
 from pathlib import Path
@@ -7,12 +6,25 @@ import datetime
 import joblib
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+import torch
 from flask import Flask, jsonify, render_template, request
+from huggingface_hub import hf_hub_download
 
 BASE = Path(__file__).parent
-MODEL_PATH = BASE / "custom_hybrid_model.pkl"
-KERAS_PATH = BASE / "custom_hybrid_keras.keras"
+MODEL_PATH = BASE / "mldl.pkl"
+HF_REPO_ID  = "jarvisai1234/house-price-prediction-india"
+
+# Auto-download model from Hugging Face if not present locally
+if not MODEL_PATH.exists():
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger(__name__).info("Downloading mldl.pkl from Hugging Face...")
+    downloaded = hf_hub_download(
+        repo_id=HF_REPO_ID,
+        filename="mldl.pkl",
+        local_dir=str(BASE),
+        local_dir_use_symlinks=False,
+    )
+    logging.getLogger(__name__).info("Model downloaded to %s", downloaded)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s | %(levelname)-7s | %(message)s",
@@ -28,7 +40,20 @@ model_lgb    = artifact["model_lgb"]
 model_gbr    = artifact["model_gbr"]
 model_et     = artifact["model_et"]
 meta         = artifact["meta_learner"]
-model_dnn    = tf.keras.models.load_model(KERAS_PATH)
+
+from trainme import TransformerResNetDNN, predict_pytorch_dnn
+DNN_PATH = BASE / "custom_hybrid_dnn.pt"
+dnn_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+first_df = pd.read_csv(BASE / "Training_dataset" / "train_part1.csv", on_bad_lines='skip', nrows=5).dropna(axis=1, how='all')
+input_dim = preprocessor.transform(first_df.drop(columns=['Price_INR'], errors='ignore')).shape[1]
+model_dnn = TransformerResNetDNN(input_dim).to(dnn_device)
+if DNN_PATH.exists():
+    model_dnn.load_state_dict(torch.load(DNN_PATH, map_location=dnn_device, weights_only=True))
+    model_dnn.eval()
+    log.info("PyTorch DNN loaded on %s", dnn_device)
+else:
+    log.warning("PyTorch DNN weights not found at %s", DNN_PATH)
 log.info("All models loaded successfully.")
 
 CITY_COORDS = {
@@ -105,13 +130,18 @@ def predict():
         }
 
         df_input = pd.DataFrame([row])
+        
+        eng_feat = artifact.get("engineer_features")
+        if eng_feat:
+            df_input = eng_feat(df_input)
+        
         X_p = preprocessor.transform(df_input)
 
         v_xgb = model_xgb.predict(X_p)
         v_lgb = model_lgb.predict(X_p)
         v_gbr = model_gbr.predict(X_p)
         v_et  = model_et.predict(X_p)
-        v_dnn = model_dnn.predict(X_p, verbose=0).flatten()
+        v_dnn = predict_pytorch_dnn(model_dnn, dnn_device, X_p)
 
         pred_log = meta.predict(np.column_stack((v_xgb, v_lgb, v_gbr, v_et, v_dnn)))
         price    = float(np.expm1(pred_log)[0])
