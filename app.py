@@ -35,6 +35,16 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from GitHub Pages
 
+import traceback
+from werkzeug.exceptions import HTTPException
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    if isinstance(e, HTTPException):
+        return e
+    return f"<pre>{traceback.format_exc()}</pre>", 500
+
+
 artifact     = joblib.load(MODEL_PATH)
 preprocessor = artifact["preprocessor"]
 model_xgb    = artifact["model_xgb"]
